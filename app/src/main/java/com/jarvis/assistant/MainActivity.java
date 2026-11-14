@@ -12,6 +12,7 @@ import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -64,7 +65,19 @@ public class MainActivity extends Activity {
                 }
                 @Override public void onError(int error) {
                     statusText.setText("СИСТЕМА ГОТОВА");
-                    showAnswer("Не удалось распознать речь. Попробуй ещё раз, командир.");
+                    String message;
+                    if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                        message = "Нет доступа к микрофону. Разреши его в настройках приложения.";
+                    } else if (error == SpeechRecognizer.ERROR_NETWORK
+                            || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+                        message = "Проблема с интернетом. Проверь подключение и попробуй снова.";
+                    } else if (error == SpeechRecognizer.ERROR_NO_MATCH
+                            || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        message = "Я не расслышал команду. Нажми кнопку и повтори.";
+                    } else {
+                        message = "Не удалось распознать речь. Попробуй ещё раз, командир.";
+                    }
+                    showAnswer(message);
                 }
                 @Override public void onResults(Bundle results) {
                     ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
@@ -159,7 +172,10 @@ public class MainActivity extends Activity {
         hint.setPadding(0, 20, 0, 0);
         root.addView(hint);
 
-        setContentView(root);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.addView(root, new ScrollView.LayoutParams(-1, -1));
+        setContentView(scrollView);
     }
 
     private void startListening() {
@@ -175,15 +191,26 @@ public class MainActivity extends Activity {
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU");
         intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Слушаю, командир");
-        speechRecognizer.startListening(intent);
+        try {
+            speechRecognizer.startListening(intent);
+        } catch (IllegalStateException e) {
+            statusText.setText("СИСТЕМА ГОТОВА");
+            showAnswer("Распознавание сейчас занято. Подожди немного и попробуй снова.");
+        }
     }
 
     private void handleCommand(String rawCommand) {
         String command = rawCommand.toLowerCase(new Locale("ru", "RU")).trim();
         answerText.setText("Вы: " + rawCommand);
 
-        if (command.contains("эй джарвис") || command.contains("эй jarvis")
-                || command.equals("джарвис") || command.equals("jarvis")) {
+        command = command.replace("эй, джарвис", "")
+                .replace("эй джарвис", "")
+                .replace("эй jarvis", "")
+                .replace("джарвис", "")
+                .replace("jarvis", "")
+                .trim();
+
+        if (command.isEmpty()) {
             speak("Да, слушаю, командир.");
         } else if (command.contains("который час") || command.contains("сколько времени")) {
             String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
